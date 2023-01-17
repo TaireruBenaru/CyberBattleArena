@@ -20,10 +20,11 @@ public partial class BattleManager
     string[] cMenuString = new string[] { "{0} Attack", "Data Chip", "Tension", "Tactics", "Guard", "Escape" };
     string[] attackTypes = new string[] { "Buster", "Breaker", "Magic"};
 
-    public string codeletters = "&#*+%?£@§$";
-    string message;
-    public int current_length = 0;
-    public bool fadeBuffer = false;
+    public string codeletters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ!_&#*+%?£@§$";
+    double scrambleProgress;
+    double scrambleIndex;
+    double numberCooldown;
+    double maxNumberCooldown = 2.5;
 
     System.Random Rand = new System.Random();
 
@@ -46,7 +47,7 @@ public partial class BattleManager
         {
             customMenuSelection.Add(Instantiate(battleSelectionPrefab, new Vector3(-10f, cMenuSelectionPos[i]), Quaternion.identity));
             cMenuSelRenderer.Add(customMenuSelection[i].GetComponent<SpriteRenderer>());
-            Messenger(i);
+            
         }
     }
 
@@ -57,11 +58,15 @@ public partial class BattleManager
             for (int i = 0; i < customMenu.Count; i++)
             {
                 customMenuSelection[i].transform.DOMoveX(-6.75f, 0.2f);
-            }
-            yield return new WaitForSeconds(0.2f);
 
-            customMenuSelection[cMenuSelection].transform.DOMoveX(-6.75f, 0.2f);
-            cMenuSelRenderer[cMenuSelection].sprite = customMenuSprite[0];
+                string text = String.Format(cMenuString[(int)customMenu[i]], attackTypes[0]);
+
+                StartCoroutine(CustMenuScramble(text, i));
+            }
+
+            customMenuSelection[cMenuSelection].transform.DOMoveX(-5.6875f, 0.2f);
+            cMenuSelRenderer[cMenuSelection].sprite = customMenuSprite[1];
+            yield return new WaitForSeconds(0.2f);
 
             while (inMenu)
             {
@@ -120,80 +125,65 @@ public partial class BattleManager
         yield return new WaitForSeconds(0.15f);
     }
 
-    void Messenger(int number)
+    IEnumerator CustMenuScramble(string input, int number)
     {
-        message = String.Format(cMenuString[(int)customMenu[number]], attackTypes[0]);
-        AnimateIn(number, 100);
-    }
-
-
-    public string GenerateRandomString(int length) 
-    { 
-        string random_text = "";
-        while (random_text.Length < length)
-        {
-            random_text += codeletters[(int)(System.Math.Floor((double)(Rand() * codeletters.Length)))];
-        }
-        return random_text;
-    }
-
-    void AnimateIn(int number, int time) 
-    { 
-        if (current_length < message.Length) 
-        {
-            current_length += 2;
-            if (current_length > message.Length)  
-            {
-                current_length = message.Length;
-            }
-            customMenuSelection[number].GetComponentInChildren<TextMeshPro>().text = GenerateRandomString(current_length);
-            time = time + 20;
-            AnimateIn(time);
-        }
-        else
-        {
-            AnimateFadeBuffer(20);
-        }
-    }
-
-
-    void AnimateFadeBuffer(int time) 
-    { 
-        if (fadeBuffer == false)
-        {
-            fadeBuffer = new string[message.Length];
-            for (int i = 0; i < message.Length; i++)
-            {
-                fadeBuffer[i] = (System.Math.Floor(System.Math.Random() * 12)) + 1 + " " + message[i];
-            }
-        }
         string message = "";
-        bool do_cycles = false;
-        for (int i = 0; i < fadeBuffer.Length; i++)
+
+        numberCooldown = maxNumberCooldown;
+        bool scramble = true;
+        
+        while(scramble)
         {
-            string[] fader = fadeBuffer[i].Split(" ");
-            if (Convert.ToInt32(fader[0]) > 0) 
+            message = ScrambleText(input);
+
+            if(message == String.Empty)
             {
-                do_cycles = true;
-                int curr = Convert.ToInt32(fader[0]);
-                curr--;
-                message += codeletters[(int)(System.Math.Floor((double)(Rand() * codeletters.Length)))];
+                scramble = false;
+                customMenuSelection[number].GetComponentInChildren<TextMeshPro>().text = input; 
             }
             else
             {
-                message += fadeBuffer[i][1];
+                customMenuSelection[number].GetComponentInChildren<TextMeshPro>().text = message; 
+            }
+        
+            yield return null;
+        }
+
+        yield return null;
+    }
+
+    string ScrambleText(string input) 
+    { 
+        string newstr = ""; 
+
+        if (numberCooldown > 0) 
+        {
+            numberCooldown -= Time.deltaTime;
+            
+
+            for (int i = 0; i < input.Length; i++) 
+            {
+                double progress = (maxNumberCooldown - numberCooldown) / maxNumberCooldown;
+                double index = progress * input.Length;
+
+                if (i < (int)index) 
+                {
+                    newstr += input[i];
+                }
+                else 
+                {
+                    if (input[i] != ' ') 
+                    {
+                        newstr += (char)codeletters[Rand.Next() % codeletters.Length];
+                    }
+                    else {
+                        newstr += ' ';
+                    }
+                }
             }
         }
-        Console.WriteLine(message);
-        if (do_cycles == true)
-        {
-            time = time + 50;
-            AnimateFadeBuffer(time);
-        }
-        else
-        {
-            //END
-        }
+
+        return newstr;
     }
 
         IEnumerator DataChipMenu()
