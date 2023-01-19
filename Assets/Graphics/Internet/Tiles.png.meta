@@ -147,6 +147,27 @@ TextureImporter:
       indices: 
       edges: []
       weights: []
+    - serializedVersion: 2
+      name: Tiles_2
+      rect:
+        serializedVersion: 2
+        x: 66
+        y: 122
+        width: 32
+        height: 38
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: f82b1a45ca6e42843b8a301729d2465b
+      internalID: -1209691710
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
     outline: []
     physicsShape: []
     bones: []
@@ -160,6 +181,7 @@ TextureImporter:
     nameFileIdTable:
       Tiles_1: 1847443292
       Tiles_0: -1140464314
+      Tiles_2: -1209691710
   spritePackingTag: 
   pSDRemoveMatte: 0
   userData: 

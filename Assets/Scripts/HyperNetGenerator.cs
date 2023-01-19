@@ -50,9 +50,11 @@ class HyperNetGenerator : MonoBehaviour
     // Generate the 2D tile map
     TileType[,] GenerateMap(string url)
     {
-        // Load the HTML from the specified URL
+            // Load the HTML from the specified URL
         HtmlWeb web = new HtmlWeb();
         HtmlDocument doc = web.Load(url);
+
+        var links = doc.DocumentNode.SelectNodes("//a[@href]");
 
         // Create a random number generator
         rand = new System.Random(url.GetHashCode());
@@ -61,83 +63,116 @@ class HyperNetGenerator : MonoBehaviour
         Queue<HtmlNode> nodes = new Queue<HtmlNode>();
         nodes.Enqueue(doc.DocumentNode);
 
+        // Get the total number of objects in the HTML file
+        int numObjects = doc.DocumentNode.SelectNodes("//div").Count;
+        // Get the maximum size of the map
+        maxWidth = Math.Min(500, Math.Max(100, 50 + (numObjects * 2)));
+        maxHeight = Math.Min(500, Math.Max(100, 50 + (numObjects * 2)));
         // Create an empty 2D map
-        TileType[,] map = new TileType[500, 500];
+        TileType[,] map = new TileType[maxWidth,maxHeight];
         // Initialize the map with Floor
-        for (int i = 0; i < 500; i++)
+        for(int i = 0; i < maxWidth; i++)
         {
-            for (int j = 0; j < 500; j++)
+            for(int j = 0; j < maxHeight; j++)
             {
-                map[i, j] = TileType.NONE;
+                map[i,j] = TileType.NONE;
             }
         }
-
+        
         // Create a list to store the positions of the rooms on the map
-        List<Tuple<int, int>> rooms = new List<Tuple<int, int>>();
+        List<Tuple<int, int, int, int>> rooms = new List<Tuple<int, int, int, int>>();
+        List<Tuple<int, int>> linkTuple = new List<Tuple<int, int>>();
 
-        // Process the nodes in the queue
-        while (nodes.Count > 0)
+        // Process the nodes
+        while (nodes.Count > 0) 
         {
             HtmlNode currentNode = nodes.Dequeue();
 
             // Add the children of the current node to the queue
             foreach (HtmlNode child in currentNode.ChildNodes)
-            {
+             {
                 nodes.Enqueue(child);
             }
 
             // Get the position of the current node on the map
-            int x = rand.Next(500);
-            int y = rand.Next(500);
+            int x = rand.Next(maxWidth);
+            int y = rand.Next(maxHeight);
 
             // Visualize the current node on the map
-            if (currentNode.Name == "a")
-            {
+            if (currentNode.Name == "div") {
+                // Get the size of the room based on the length of the content in the node
+                int roomWidth = Math.Min(5, Math.Max(2, currentNode.InnerText.Length / 10));
+                int roomHeight = Math.Min(5, Math.Max(2, currentNode.InnerText.Length / 10));
                 // Create a room for the <a> element
-                map[x, y] = TileType.ROOM;
+                for (int i = x - roomWidth / 2; i <= x + roomWidth / 2; i++) {
+                    for (int j = y - roomHeight / 2; j <= y + roomHeight / 2; j++) {
+                        if (i >= 0 && i < maxWidth && j >= 0 && j < maxHeight) 
+                        {
+                            map[i, j] = TileType.ROOM;
+                        }
+                    }
+                }
                 // Add the position of the room to the list
-                rooms.Add(new Tuple<int, int>(x, y));
-            }
-            else
+                rooms.Add(new Tuple<int, int, int, int>(x, y, roomWidth, roomHeight));
+            } 
+            else if(currentNode.Name == "a")
             {
-                // Create a floor tile for other elements
-                map[x, y] = TileType.FLOOR;
+                linkTuple.Add(new Tuple<int, int>(rooms.Count-1
+                , 0));
             }
         }
         // Create walls around the rooms
-        foreach (var room in rooms)
+        foreach (var room in rooms) 
         {
-            for (int i = room.Item1 - 1; i <= room.Item1 + 1; i++)
+            for (int i = room.Item1 - 1; i <= room.Item1 + 1; i++) 
             {
-                for (int j = room.Item2 - 1; j <= room.Item2 + 1; j++)
+                for (int j = room.Item2 - 1; j <= room.Item2 + 1; j++) 
                 {
-                    if (i >= 0 && i < 500 && j >= 0 && j < 500 && map[i, j] == TileType.FLOOR)
+                    if (i >= 0 && i < maxWidth && j >= 0 && j < maxHeight && map[i, j] == TileType.FLOOR) 
                     {
                         map[i, j] = TileType.WALL;
                     }
                 }
             }
         }
+
+        if (links != null)
+        {
+            foreach (var link in linkTuple)
+            {
+                // Determine which room the link belongs to
+                // Determine which room the link belongs to
+                int roomIndex = link.Item1;
+                Tuple<int, int, int, int> room = rooms[roomIndex];
+                int x = room.Item1 + room.Item3 / 2;
+                int y = room.Item2 + room.Item4 / 2;
+                //if (map[x, y] == TileType.WALL)
+                map[x, y] = TileType.TELEPORTER;
+            }
+        }
         // Connect the rooms with pathways
         for (int i = 0; i < rooms.Count - 1; i++)
         {
-            // use Bresenham's line algorithm to create a path between the two rooms 
             int x1 = rooms[i].Item1;
             int y1 = rooms[i].Item2;
             int x2 = rooms[i + 1].Item1;
             int y2 = rooms[i + 1].Item2;
-            int dx = Math.Abs(x2 - x1);
-            int dy = Math.Abs(y2 - y1);
-            int sx = x1 < x2 ? 1 : -1;
-            int sy = y1 < y2 ? 1 : -1;
-            int err = dx - dy;
-            while (true)
+            while (x1 != x2 || y1 != y2) 
             {
-                int e2 = err * 2;
-                if (x1 == x2 && y1 == y2) break;
-                if (e2 > -dy) { err -= dy; x1 += sx; }
-                if (e2 < dx) { err += dx; y1 += sy; }
-                if (map[x1, y1] == TileType.WALL) map[x1, y1] = TileType.FLOOR;
+                if (x1 < x2) x1++;
+                else if (x1 > x2) x1--;
+                if (y1 < y2) y1++;
+                else if (y1 > y2) y1--;
+                if (x1 >= 0 && x1 < maxWidth && y1 >= 0 && y1 < maxHeight) 
+                {
+                    if (map[x1, y1] == TileType.NONE) map[x1, y1] = TileType.FLOOR;
+                    // check the tiles to the left and right of the current tile
+                    if (x1-1 >= 0 && map[x1-1, y1] == TileType.NONE) map[x1-1, y1] = TileType.FLOOR;
+                    if (x1+1 < maxWidth && map[x1+1, y1] == TileType.NONE) map[x1+1, y1] = TileType.FLOOR;
+                    // check the tiles above and below the current tile
+                    if (y1-1 >= 0 && map[x1, y1-1] == TileType.NONE) map[x1, y1-1] = TileType.FLOOR;
+                    if (y1+1 < maxHeight && map[x1, y1+1] == TileType.NONE) map[x1, y1+1] = TileType.FLOOR;
+                }
             }
         }
         return map;
@@ -191,5 +226,5 @@ class HyperNetGenerator : MonoBehaviour
 
     enum TileType
     {
-        NONE, ROOM, WALL, FLOOR
+        NONE, ROOM, WALL, FLOOR, TELEPORTER
     }
