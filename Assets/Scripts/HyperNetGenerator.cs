@@ -4,6 +4,7 @@ using UnityEngine;
 using System.Net;
 using System.Linq;
 using System.Collections.Generic;
+using HtmlAgilityPack;
 
 class HyperNetGenerator : MonoBehaviour
 {
@@ -17,11 +18,14 @@ class HyperNetGenerator : MonoBehaviour
 
     void Start() 
     {
+        maxHeight = 500;
+        maxWidth = 500;
+
         string html = new WebClient().DownloadString(url);
         List<string> urls = ExtractUrls(html);
 
         // Generate the 2D tile map
-        TileType[,] map = GenerateMap(urls.Count);
+        TileType[,] map = GenerateMap(url);
         PrintMap(map);
 
         // Find teleporter locations and set their destination URLs
@@ -44,97 +48,100 @@ class HyperNetGenerator : MonoBehaviour
     }
 
     // Generate the 2D tile map
-    TileType[,] GenerateMap(int numRooms) 
+    TileType[,] GenerateMap(string url)
     {
+        // Load the HTML from the specified URL
+        HtmlWeb web = new HtmlWeb();
+        HtmlDocument doc = web.Load(url);
+
         // Create a random number generator
         rand = new System.Random(url.GetHashCode());
 
-        maxWidth = Math.Min(500, Math.Max(100, 50 + (numRooms * 2)));
-        maxHeight = Math.Min(500, Math.Max(100, 50 + (numRooms * 2)));
+        // Create a queue to hold the nodes that need to be processed
+        Queue<HtmlNode> nodes = new Queue<HtmlNode>();
+        nodes.Enqueue(doc.DocumentNode);
 
-        // Create an empty 2D map with a variable size
-        TileType[,] map = new TileType[maxWidth,maxHeight];
+        // Create an empty 2D map
+        TileType[,] map = new TileType[500, 500];
         // Initialize the map with Floor
-        for(int i = 0; i < maxWidth; i++)
+        for (int i = 0; i < 500; i++)
         {
-            for(int j = 0; j < maxHeight; j++)
+            for (int j = 0; j < 500; j++)
             {
-                map[i,j] = TileType.FLOOR;
-            }
-        }
-        // Add rooms to the map at random locations
-        for (int i = 0; i < numRooms; i++) 
-        {
-            //Random width and height of the room
-            int width = rand.Next(10, maxWidth);
-            int height = rand.Next(10, maxHeight);
-            //random position of the room
-            int x = rand.Next(maxWidth - width);
-            int y = rand.Next(maxHeight - height);
-            for(int k = x; k < x+width; k++)
-            {
-                for(int j = y; j < y+height; j++)
-                {
-                    map[k,j] = TileType.ROOM;
-                }
-            }
-        }
-        
-        for(int i = 0; i < maxWidth; i++)
-        {
-            for(int j = 0; j < maxHeight; j++)
-            {
-                if(map[i,j] == TileType.ROOM)
-                {
-                    if(i > 0 && map[i-1,j] == TileType.FLOOR) map[i-1,j] = TileType.WALL;
-                    if(i < maxWidth-1 && map[i+1,j] == TileType.FLOOR) map[i+1,j] = TileType.WALL;
-                    if(j > 0 && map[i,j-1] == TileType.FLOOR) map[i,j-1] = TileType.WALL;
-                    if(j < maxHeight-1 && map[i,j+1] == TileType.FLOOR) map[i,j+1] = TileType.WALL;
-                }
+                map[i, j] = TileType.NONE;
             }
         }
 
-        // Add pathways to connect the rooms
-        for (int i = 0; i < numRooms; i++) 
+        // Create a list to store the positions of the rooms on the map
+        List<Tuple<int, int>> rooms = new List<Tuple<int, int>>();
+
+        // Process the nodes in the queue
+        while (nodes.Count > 0)
         {
-            int x1 = rand.Next(maxWidth);
-            int y1 = rand.Next(maxHeight);
-            while(map[x1,y1] != TileType.ROOM)
+            HtmlNode currentNode = nodes.Dequeue();
+
+            // Add the children of the current node to the queue
+            foreach (HtmlNode child in currentNode.ChildNodes)
             {
-                x1 = rand.Next(maxWidth);
-                y1 = rand.Next(maxHeight);
+                nodes.Enqueue(child);
             }
-            int x2 = rand.Next(maxWidth);
-            int y2 = rand.Next(maxHeight);
-            while(map[x2,y2] != TileType.ROOM)
+
+            // Get the position of the current node on the map
+            int x = rand.Next(500);
+            int y = rand.Next(500);
+
+            // Visualize the current node on the map
+            if (currentNode.Name == "a")
             {
-                x2 = rand.Next(maxWidth);
-                y2 = rand.Next(maxHeight);
+                // Create a room for the <a> element
+                map[x, y] = TileType.ROOM;
+                // Add the position of the room to the list
+                rooms.Add(new Tuple<int, int>(x, y));
             }
-            // Connect the two rooms with a pathway
-            // check if the two rooms are not the same room
-            if(x1 != x2 || y1 != y2)
+            else
             {
-                // use bresenham's line algorithm to create a path between the two rooms 
-                int dx = Math.Abs(x2 - x1);
-                int dy = Math.Abs(y2 - y1);
-                int sx = x1 < x2 ? 1 : -1;
-                int sy = y1 < y2 ? 1 : -1;
-                int err = dx - dy;
-                while(true)
-                {
-                    int e2 = err * 2;
-                    if(x1 == x2 && y1 == y2) break;
-                    if(e2 > -dy) { err -= dy; x1 += sx; }
-                    if(e2 < dx) { err += dx; y1 += sy; }
-                    if(map[x1,y1] != TileType.ROOM) map[x1,y1] = TileType.FLOOR;
-                }
-                // with a probability of 30% make the path a dead end
-                if(rand.Next(10) < 3) map[x1,y1] = TileType.ROOM;
+                // Create a floor tile for other elements
+                map[x, y] = TileType.FLOOR;
             }
         }
-    return map;
-}
+        // Create walls around the rooms
+        foreach (var room in rooms)
+        {
+            for (int i = room.Item1 - 1; i <= room.Item1 + 1; i++)
+            {
+                for (int j = room.Item2 - 1; j <= room.Item2 + 1; j++)
+                {
+                    if (i >= 0 && i < 500 && j >= 0 && j < 500 && map[i, j] == TileType.FLOOR)
+                    {
+                        map[i, j] = TileType.WALL;
+                    }
+                }
+            }
+        }
+        // Connect the rooms with pathways
+        for (int i = 0; i < rooms.Count - 1; i++)
+        {
+            // use Bresenham's line algorithm to create a path between the two rooms 
+            int x1 = rooms[i].Item1;
+            int y1 = rooms[i].Item2;
+            int x2 = rooms[i + 1].Item1;
+            int y2 = rooms[i + 1].Item2;
+            int dx = Math.Abs(x2 - x1);
+            int dy = Math.Abs(y2 - y1);
+            int sx = x1 < x2 ? 1 : -1;
+            int sy = y1 < y2 ? 1 : -1;
+            int err = dx - dy;
+            while (true)
+            {
+                int e2 = err * 2;
+                if (x1 == x2 && y1 == y2) break;
+                if (e2 > -dy) { err -= dy; x1 += sx; }
+                if (e2 < dx) { err += dx; y1 += sy; }
+                if (map[x1, y1] == TileType.WALL) map[x1, y1] = TileType.FLOOR;
+            }
+        }
+        return map;
+    }
 
     // Print the 2D tile map to the console
     void PrintMap(TileType[,] map) 
