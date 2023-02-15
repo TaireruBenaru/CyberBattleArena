@@ -1,10 +1,13 @@
 using System;
 using System.Text.RegularExpressions;
 using UnityEngine;
+using UnityEngine.UI;
+using UnityEngine.Networking;
 using System.Net;
 using System.Linq;
 using System.Collections.Generic;
 using HtmlAgilityPack;
+using System.Collections;
 
 class HyperNetGenerator : MonoBehaviour
 {
@@ -14,9 +17,11 @@ class HyperNetGenerator : MonoBehaviour
     public int maxHeight;
     public int maxWidth;
 
+    public SpriteRenderer background;
+
     System.Random rand = new System.Random();
 
-    void Start() 
+    IEnumerator Start() 
     {
         maxHeight = 500;
         maxWidth = 500;
@@ -33,6 +38,8 @@ class HyperNetGenerator : MonoBehaviour
         foreach (Teleporter t in teleporters) {
             Debug.Log("Teleporter at (" + t.x + ", " + t.y + ") leads to " + t.url);
         }
+        
+        yield return StartCoroutine(DownloadImage("https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=" + url));
     }
 
     // Extract all URLs found in the HTML data
@@ -215,6 +222,24 @@ class HyperNetGenerator : MonoBehaviour
         }
         return teleporters;
     }
+
+    IEnumerator DownloadImage(string MediaUrl)
+    {   
+        UnityWebRequest request = UnityWebRequestTexture.GetTexture(MediaUrl);
+        yield return request.SendWebRequest();
+        if(request.isNetworkError || request.isHttpError) 
+        {
+            Debug.Log(request.error);
+        }
+        else
+        {
+            Texture2D rawImage = ((DownloadHandlerTexture) request.downloadHandler).texture;
+            rawImage.filterMode = FilterMode.Point;
+            rawImage.wrapMode = TextureWrapMode.Repeat;
+            rawImage.Apply();
+            background.sprite = Sprite.Create(rawImage, new Rect(0.0f, 0.0f, rawImage.width, rawImage.height), new Vector2(0.5f, 0.5f), 16.0f, 4, SpriteMeshType.FullRect);
+        }
+    } 
 }
     
 
